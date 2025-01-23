@@ -32,8 +32,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # add telegraf binary
 ##telegraf##COPY --from=telegraf /usr/bin/telegraf /usr/bin/telegraf
 
+# Copy files from the local directory to /app inside the container
+COPY ./ /app/
+
 RUN \
-    --mount=type=bind,source=./,target=/app/ \
     set -x && \
     TEMP_PACKAGES=() && \
     KEPT_PACKAGES=() && \
@@ -140,7 +142,8 @@ RUN \
     apt-get clean -q -y && \
     rm -rf /src/* /tmp/* /var/lib/apt/lists/* /var/cache/* && \
     # document versions
-    cat /VERSIONS
+    cat /VERSIONS && \
+    rm -rf /app
 
 COPY rootfs/ /
 
