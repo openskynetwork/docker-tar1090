@@ -46,6 +46,12 @@
     - [Output to Prometheus](#output-to-prometheus)
   - [Minimalist setup](#minimalist-setup)
 
+## Notice about ultrafeeder
+
+- Please use [`ultrafeeder`](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder)
+- ultrafeeder can do everything this image can do and more
+- the readme for ultrafeeder is often more up to date
+
 ## Introduction
 
 This container [`tar1090`](https://github.com/wiedehopf/tar1090) runs [`@wiedehopf's readsb fork`](https://github.com/wiedehopf/readsb) ADS-B decoding engine in to feed the graphic tar1090 viewing webinterface, also by [wiedehopf](https://github.com/wiedehopf) (as is the viewadsb text-based output) to provide digital representations of the readsb output.
@@ -108,8 +114,7 @@ docker run -d \
     -e LAT=xx.xxxxx \
     -e LONG=xx.xxxxx \
     -v /opt/adsb/tar1090/graphs1090:/var/lib/collectd \
-    --tmpfs=/run:exec,size=64M \
-    --tmpfs=/var/log \
+    --tmpfs=/run:exec,size=256M \
     ghcr.io/sdr-enthusiasts/docker-tar1090:latest
 ```
 
@@ -127,8 +132,7 @@ docker run -d \
     -e LAT=-33.33333 \
     -e LONG=111.11111 \
     -v /opt/adsb/tar1090/graphs1090:/var/lib/collectd \
-    --tmpfs=/run:exec,size=64M \
-    --tmpfs=/var/log \
+    --tmpfs=/run:exec,size=256M \
     ghcr.io/sdr-enthusiasts/docker-tar1090:latest
 ```
 
@@ -167,8 +171,7 @@ services:
     ports:
       - 8078:80
     tmpfs:
-      - /run:exec,size=64M
-      - /var/log
+      - /run:exec,size=256M
 ```
 
 You should now be able to browse to:
@@ -240,7 +243,7 @@ This container accepts HTTP connections on TCP port `80` by default. You can cha
 | `ENABLE_TIMELAPSE1090`     | Optional / Legacy. Set to any value to enable btimelapse1090. Once enabled, can be accessed via <http://dockerhost:port/timelapse/>.                                                    | Unset                |
 | `READSB_EXTRA_ARGS`        | Optional, allows to specify extra parameters for readsb                                                                                                                                 | Unset                |
 | `READSB_DEBUG`             | Optional, used to set debug mode. `n`: network, `P`: CPR, `S`: speed check                                                                                                              | Unset                |
-| `S6_SERVICES_GRACETIME`    | Optional, set to 30000 when saving traces / globe_history                                                                                                                               | `3000`               |
+| `S6_SERVICES_GRACETIME`    | Optional, reduce for faster container stop (graceful stop should not depend on this)                                                                                                                           | `3000`               |
 | `ENABLE_AIRSPY`            | Optional, set to any non-empty value if you want to enable the special AirSpy graphs. See below for additional configuration requirements                                               | Unset                |
 | `URL_AIRSPY`               | Optional, set to the URL where the airspy stats are available, for example `http://airspy_adsb`                                                                                         | Unset                |
 | `URL_1090_SIGNAL`          | Optional. Retrieve gain, % of strong signals and signal graph data from a remote source. Set to an URL where the readsb stats are available, i.e. `http://192.168.2.34/tar1090`         | Unset                |
@@ -271,6 +274,7 @@ All of the variables below are optional.
 | `TAR1090_IMAGE_CONFIG_LINK` | An optional URL shown at the top of page, designed to be used for a link back to a configuration page. The token `HOSTNAME` in the link is replaced with the current host that tar1090 is accessed on. | `null`                       |
 | `TAR1090_IMAGE_CONFIG_TEXT` | Text to display for the config link                                                                                                                                                                    | `null`                       |
 | `TAR1090_DISABLE`           | Set to `true` to disable the web server and all websites (including the map, `graphs1090`, `heatmap`, `pTracks`, etc.)                                                                                 | Unset                        |
+| `TAR1090_HISTORY_DISABLE`   | Set to `true` to disable the tar1090 track history (pTracks / non globe tracks)                                                                                                                        | Unset                        |
 | `READSB_ENABLE_HEATMAP`    | Set to `true` or leave unset to enable the HeatMap function available at `http://myip/?Heatmap`; set to `false` to disable the HeapMap function | `true` (enabled) |
 | `READSB_ENABLE_TRACES`     | Save detailed globe history traces (1 gzip compressed json file per day and airframe, use MAX_GLOBE_HISTORY so you don't run out of inodes / diskspace)                                                 | `false` |
 | `TAR1090_ENABLE_ACTUALRANGE`    | Set to `true` or leave unset to enable the outline of the actual range of your station on the map; set to `false` to disable the this outline | `true` (enabled) |
@@ -282,10 +286,30 @@ All of the variables below are optional.
 
 #### Using a locally modified tar1090 version
 
-- `git clone https://github.com/wiedehopf/tar1090 /local/my_special_version`
-- Apply your modifications
-- Make that directory available as /var/tar1090_git_source in the container (`volumes: - /local/my_special_version:/var/tar1090_git_source`)
-- `UPDATE_TAR1090=true`
+`/local/custom_version` can be any folder you prefer.
+
+Clone tar1090 to a local direcotry: `git clone https://github.com/wiedehopf/tar1090 /local/custom_version`
+
+Make `/local/custom_version` available as `/var/tar1090_git_source` in the container:
+
+```
+    volumes:
+      - /local/custom_version:/var/tar1090_git_source
+```
+
+Make sure you have UPDATE_TAR1090 env var set to true.
+
+Changes in `/local/custom_version` won't be visible with a simple page reload, you need to either restart the container or run:
+
+```
+docker exec -it ultrafeeder bash /tar1090-install.sh /run/readsb webroot /usr/local/share/tar1090 /var/tar1090_git_source
+```
+
+After this has finished a simple reload in the browser should do the trick.
+
+Another option is to bind / mount a folder to /var/custom_html in the container and set
+CUSTOM_HTML=true, be aware no cache busting will be done, nor will any of the tar1090 configuration
+settings be applied. The folder will be served as is with aircraft data available as usual at /data.
 
 #### `tar1090` `config.js` Configuration - Title
 
@@ -305,7 +329,7 @@ All of the variables below are optional.
 
 | Environment Variable                        | Purpose                                                                                                                                                                                                                                                                                                                                                                    | Default           |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `TAR1090_BINGMAPSAPIKEY`                    | Provide a Bing Maps API key to enable the Bing imagery layer. You can obtain a free key (with usage limits) at <https://www.bingmapsportal.com/> (you need a "basic key").                                                                                                                                                                                                 | `null`            |
+| `TAR1090_NGINX_PORT`                        | Set the port the webserver will listen on (normally this can be left default) | `80`   |
 | `TAR1090_DEFAULTCENTERLAT`                  | Default center (latitude) of the map. This setting is overridden by any position information provided by dump1090/readsb. All positions are in decimal degrees.                                                                                                                                                                                                            | `45.0`            |
 | `TAR1090_DEFAULTCENTERLON`                  | Default center (longitude) of the map. This setting is overridden by any position information provided by dump1090/readsb. All positions are in decimal degrees.                                                                                                                                                                                                           | `9.0`             |
 | `TAR1090_DEFAULTZOOMLVL`                    | The google maps zoom level, `0` - `16`, lower is further out.                                                                                                                                                                                                                                                                                                              | `7`               |
@@ -320,13 +344,14 @@ All of the variables below are optional.
 | `TAR1090_ACTUAL_RANGE_OUTLINE_COLOR`        | Colour for the actual range outline                                                                                                                                                                                                                                                                                                                                        | `#00596b`         |
 | `TAR1090_ACTUAL_RANGE_OUTLINE_WIDTH`        | Width of the actual range outline                                                                                                                                                                                                                                                                                                                                          | `1.7`             |
 | `TAR1090_ACTUAL_RANGE_OUTLINE_DASH`         | Dashed style for the actual range outline. Unset for solid line. `[5,5]` for a dashed line with 5 pixel lines and spaces in between                                                                                                                                                                                                                                        | Unset             |
-| `TAR1090_MAPTYPE_TAR1090`                   | Which map is displayed to new visitors. Valid values for this setting are `osm`, `esri`, `carto_light_all`, `carto_light_nolabels`, `carto_dark_all`, `carto_dark_nolabels`, `gibs`, `osm_adsbx`, `chartbundle_sec`, `chartbundle_tac`, `chartbundle_hel`, `chartbundle_enrl`, `chartbundle_enra`, `chartbundle_enrh`, and only with bing key `bing_aerial`, `bing_roads`. | `carto_light_all` |
+| `TAR1090_MAPTYPE_TAR1090`                   | Which map is displayed to new visitors. Valid values for this setting are `osm`, `esri`, `carto_light_all`, `carto_light_nolabels`, `carto_dark_all`, `carto_dark_nolabels`, `gibs`, `osm_adsbx`, `chartbundle_sec`, `chartbundle_tac`, `chartbundle_hel`, `chartbundle_enrl`, `chartbundle_enra`, `chartbundle_enrh`. | `carto_light_all` |
 | `TAR1090_MAPDIM`                            | Default map dim state, true or false.                                                                                                                                                                                                                                                                                                                                      | `true`            |
 | `TAR1090_MAPDIMPERCENTAGE`                  | The percentage amount of dimming used if the map is dimmed, `0`-`1`                                                                                                                                                                                                                                                                                                        | `0.45`            |
 | `TAR1090_MAPCONTRASTPERCENTAGE`             | The percentage amount of contrast used if the map is dimmed, `0`-`1`                                                                                                                                                                                                                                                                                                       | `0`               |
 | `TAR1090_DWDLAYERS`                         | Various map layers provided by the DWD geoserver can be added here. [Preview and available layers](https://maps.dwd.de/geoserver/web/wicket/bookmarkable/org.geoserver.web.demo.MapPreviewPage?1&filter=false). Multiple layers are also possible. Syntax: `dwd:layer1,dwd:layer2,dwd:layer3`                                                                              | `dwd:RX-Produkt`  |
 | `TAR1090_LABELZOOM`                         | Displays aircraft labels only until this zoom level, `1`-`15` (values >`15` don't really make sense)                                                                                                                                                                                                                                                                       |                   |
 | `TAR1090_LABELZOOMGROUND`                   | Displays ground traffic labels only until this zoom level, `1`-`15` (values >`15` don't really make sense)                                                                                                                                                                                                                                                                 |                   |
+| `TAR1090_JAEROLABEL`                        | Relabel data input on the readsb jaero input with this label, this data by default shows as ADS-C                                                                                                                                                                                                                                                                          |                   |
 
 #### `tar1090` `config.js` Configuration - Range Rings
 
@@ -450,7 +475,7 @@ Where the default value is "Unset", `readsb`'s default will be used.
 | Variable                      | Description                                                                                                                    | Controls which `readsb` option | Default |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ | ------- |
 | `READSB_ENABLE_BIASTEE`       | Set to any value to enable bias tee on supporting interfaces                                                                   | `--enable-biastee`             | Unset   |
-| `READSB_RX_LOCATION_ACCURACY` | Accuracy of receiver location in metadata: 0=no location, 1=approximate, 2=exact                                               | `--rx-location-accuracy=<n>`   | `2`     |
+| `READSB_RX_LOCATION_ACCURACY` | Accuracy of receiver location: 0: no location / internal use only, 1: 2 decimals, 2: exact (default), 3: 1 decimals, 4: 0 decimals (remove location from heywhatsthat panorama unless set to exact)  | `--json-location-accuracy=<n>`   | `2`       |
 | `READSB_JSON_INTERVAL`        | Update interval for the webinterface in seconds / interval between aircraft.json writes                                        | `--write-json-every=<sec>`     | `1.0`   |
 | `READSB_JSON_TRACE_INTERVAL`  | Per plane interval for json position output and trace interval for globe history                                               | `--json-trace-interval=<sec>`  | `15`    |
 | `READSB_HEATMAP_INTERVAL`     | Per plane interval for heatmap and replay (if you want to lower this, also lower json-trace-interval to this or a lower value) | `--heatmap=<sec>`              | `15`    |
@@ -459,9 +484,9 @@ Where the default value is "Unset", `readsb`'s default will be used.
 | `READSB_STATS_EVERY`          | Number of seconds between showing and resetting stats.                                                                         | `--stats-every=<sec>`          | Unset   |
 | `READSB_STATS_RANGE`          | Set this to any value to collect range statistics for polar plot.                                                              | `--stats-range`                | Unset   |
 | `READSB_RANGE_OUTLINE_HOURS`  | Change which past timeframe the range outline is based on                                                                      | `--range-outline-hours`        | `24`    |
-| `MAX_GLOBE_HISTORY`           | Maximum number of days that `globe_history` data (used to produce heatmaps and replay) is retained. Note - this parameter doesn't affect the data used to produce `graphs1090` statistics | | Unset |
+| `MAX_GLOBE_HISTORY`           | Maximum number of days that `globe_history` data (heatmap / replay / traces) is retained. Note - this parameter doesn't affect the data used to produce `graphs1090` statistics | | Unset |
 
-### AutoGain for RTLSDR Devices
+### Legacy AutoGain for RTLSDR Devices
 
 If you have set `READSB_GAIN=autogain`, then the system will take signal strength measurements to determine the optimal gain. The AutoGain functionality is based on a (slightly) modified version of [Wiedehopf's AutoGain](https://github.com/wiedehopf/autogain). AutoGain will only work with `rtlsdr` style receivers.
 
@@ -515,7 +540,7 @@ docker exec -it tar1090 /usr/local/bin/viewadsb --cpr-focus 3D3ED0
 | Variable                                     | Description                                                                                            | Default        |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------- |
 | `GRAPHS1090_DARKMODE`                        | If set to any value, `graphs1090` will be rendered in "dark mode".                                     | Unset          |
-| `GRAPHS1090_RRD_STEP`                        | Interval in seconds to feed data into RRD files.                                                       | `60`           |
+| `GRAPHS1090_RRD_STEP`                        | Interval in seconds to feed data into RRD files. (really don't touch this please)                      | `60`           |
 | `GRAPHS1090_SIZE`                            | Set graph size, possible values: `small`, `default`, `large`, `huge`, `custom`.                        | `custom`       |
 | `GRAPHS1090_ALL_LARGE`                       | Make the small graphs as large as the big ones by setting to `yes`.                                    | `no`           |
 | `GRAPHS1090_FONT_SIZE`                       | Font size (relative to graph size).                                                                    | `10.0`         |
@@ -524,6 +549,8 @@ docker exec -it tar1090 /usr/local/bin/viewadsb --cpr-focus 3D3ED0
 | `GRAPHS1090_LARGE_HEIGHT`                    | Defines the height of the larger graphs. (if size is set to custom)                                    | `235`          |
 | `GRAPHS1090_SMALL_WIDTH`                     | Defines the width of the smaller graphs. (if size is set to custom)                                    | `619`          |
 | `GRAPHS1090_SMALL_HEIGHT`                    | Defines the height of the smaller graphs. (if size is set to custom)                                   | `324`          |
+| `GRAPHS1090_RANGE_UNITS`                     | Units for range graph: nautical, statute or metric                                                     | `nautical`     |
+| `GRAPHS1090_TEMP_UNITS`                      | Units for temperature graph: celsius or fahrenheit                                                     | `celsius`      |
 | `GRAPHS1090_DISK_DEVICE`                     | Defines which disk device (`mmc0`, `sda`, `sdc`, etc) is shown. Leave empty for default device         | Unset          |
 | `GRAPHS1090_ETHERNET_DEVICE`                 | Defines which (wired) ethernet device (`eth0`, `enp0s`, etc) is shown. Leave empty for default device  | Unset          |
 | `GRAPHS1090_WIFI_DEVICE`                     | Defines which (wireless) WiFi device (`wlan0`, `wlp3s0`, etc) is shown. Leave empty for default device | Unset          |
@@ -539,6 +566,12 @@ docker exec -it tar1090 /usr/local/bin/viewadsb --cpr-focus 3D3ED0
 | `GRAPHS1090_WWW_HEADER`                      | Set header text for the web page                                                                       | `Perf. Graphs` |
 | `GRAPHS1090_HIDE_SYSTEM`                     | Hide the system graphs and don't render them, don't collect system data                                | `no`           |
 | `GRAPHS1090_DEFAULT_APPEND`                  | Append to /etc/default/graphs1090, see <https://github.com/wiedehopf/graphs1090/blob/master/default>   | Unset          |
+| `GRAPHS1090_CPU_TEMP`                        | container internal path to thermal zone with CPU temp. defaults to /sys/class/thermal/thermal_zone0/temp | Unset          |
+| `GRAPHS1090_OTHER_TEMP1`                     | container internal path to file that the user must update with temperature in C divided by 1000        | Unset          |
+| `GRAPHS1090_RANGE_INCLUDE_NONADSB`           | include non-ADSB positions in the range graph (HFDL, ADS-C, MLAT, TIS-B, Other)                        |  False          |
+| `ENABLE_AIRSPY`                              | Optional, set to any non-empty value if you want to enable the special AirSpy graphs. See below for additional configuration requirements | Unset          |
+| `URL_AIRSPY`                                 | Optional, set to the URL where the airspy stats are available, for example `http://airspy_adsb`                                           | Unset          |
+| `URL_1090_SIGNAL`                            | Optional. Retrieve gain and signal data from an URL where the readsb stats are available, i.e. `http://192.168.2.34/tar1090`              | Unset          |
 
 ### Enabling UAT data
 
@@ -658,7 +691,7 @@ We also have a [Discord channel](https://discord.gg/sTf9uYF), feel free to [join
 
 | Variable               | Description                                                                                                                               | Controls which `readsb` option | Default        |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | -------------- |
-| `READSB_GAIN`          | Set gain (in dB).                                                                                                                         | `--gain=<db>`                  | Max gain       |
+| `READSB_GAIN`          | Set gain (in dB). Set to `auto` to use the quickly adjusting readsb's built-in auto-gain. Use `autogain` to use the slow adjusting legacy autogain script. | `--gain=<value>`| `auto`       |
 | `READSB_DEVICE_TYPE`   | If using an SDR, set this to `rtlsdr`, `modesbeast`, `gnshulc` depending on the model of your SDR. If not using an SDR, leave un-set.     | `--device-type=<type>`         | Unset          |
 | `READSB_RTLSDR_DEVICE` | Select device by serial number.                                                                                                           | `--device=<serial>`            | Unset          |
 | `READSB_RTLSDR_PPM`    | Set oscillator frequency correction in PPM. See section [Estimating PPM](https://github.com/docker-readsb/README.MD#estimating-ppm) below | `--ppm=<correction>`           | Unset          |
@@ -680,12 +713,12 @@ services:
       - LAT=-33.33333
       - LONG=111.11111
       - READSB_DEVICE_TYPE=rtlsdr
-      - READSB_GAIN=43.9
+      - READSB_GAIN=auto
       - READSB_RTLSDR_DEVICE=0
     ports:
       - 8078:80
     tmpfs:
-      - /run:exec,size=64M
+      - /run:exec,size=256M
       - /var/log
     # USB passthrough
     device_cgroup_rules:
@@ -759,8 +792,8 @@ In order for Telegraf to serve a [Prometheus](https://prometheus.io) endpoint, t
 
 If you want to configure to run with a minimal CPU and RAM profile, and use it _only_ as a SDR decoder but without any mapping or stats/graph websites, then do the following:
 
-- Set the parameter `TAR1090_DISABLE=true`. This will prevent the `nginx` webserver and any websites or associated data collection (collectd, graphs1090, rrd, etc.) to be launched
-- Make sure not to use the `dhcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf` label as Telegraf adds a LOT of resource use to the container
+- Set the parameter `TAR1090_DISABLE=true`. This will prevent the `nginx` webserver and any websites or associated data collection (graphs1090, heatmap, etc.) to be launched
+- Make sure not to use the `ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf` label as Telegraf adds a LOT of resource use to the container
 
 ## Offline maps
 

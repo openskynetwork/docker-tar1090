@@ -276,6 +276,8 @@ do
     dir=$(pwd)
     cd "$TMP"
 
+    sed -i -e "s/tar1090 on github/tar1090 on github (${TAR_VERSION})/" index.html
+
     "$gpath/git/cachebust.sh" "$gpath/git/cachebust.list" "$TMP"
 
     rm -rf "$html_path"

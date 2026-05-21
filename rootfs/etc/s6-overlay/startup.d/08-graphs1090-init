@@ -27,6 +27,31 @@ else
     cp /usr/share/graphs1090/git/collectd.conf /etc/collectd/collectd.conf
 fi
 
+if [[ -n "$GRAPHS1090_CPU_TEMP" ]]; then
+	# change path for cpu temp
+	sed -i -e "s@/sys/class/thermal/thermal_zone0/temp@$GRAPHS1090_CPU_TEMP@" /etc/collectd/collectd.conf
+fi
+
+# other temperature
+if [[ -n "$GRAPHS1090_OTHER_TEMP1" ]]; then
+read -r -d '' _insert <<EOF || true
+\n    <Table "$GRAPHS1090_OTHER_TEMP1">\n\
+        Instance localhost\n\
+        Separator " "\n\
+        <Result>\n\
+            Type gauge\n\
+            InstancePrefix "other_temp1"\n\
+            ValuesFrom 0\n\
+        </Result>\n\
+    </Table>\n
+EOF
+    sed -i -e 's@<Plugin table>.*@\0'"$_insert"'@' /etc/collectd/collectd.conf
+fi
+
+if chk_enabled "${GRAPHS1090_RANGE_INCLUDE_NONADSB}"; then
+    sed -i -e 's/range_include_nonadsb = False/range_include_nonadsb = True/' /usr/share/graphs1090/dump1090.py
+fi
+
 # ref: https://github.com/wiedehopf/graphs1090/blob/151e63a810d6b087518992d4f366d9776c5c826b/install.sh#L171
 sed -i '/<Plugin "interface">/a\ \ \ \ Interface "eth0"' /etc/collectd/collectd.conf
 # ref: https://github.com/wiedehopf/graphs1090/blob/151e63a810d6b087518992d4f366d9776c5c826b/install.sh#L218
@@ -120,14 +145,23 @@ else
     sed -i "s|DRAW_INTERVAL=.*|DRAW_INTERVAL=60|g" /etc/default/graphs1090
 fi
 
+if [[ -n "${GRAPHS1090_RANGEUNITS}" && -z "${GRAPHS1090_RANGE_UNITS}" ]]; then
+    GRAPHS1090_RANGE_UNITS="${GRAPHS1090_RANGEUNITS}"
+fi
+if [[ -z "${GRAPHS1090_RANGE_UNITS}" ]]; then
+    GRAPHS1090_RANGE_UNITS="nautical"
+fi
 # Set range units, possible values: `nautical`, `statute`, `metric`
 # shellcheck disable=SC2076
-if [[ -n "${GRAPHS1090_RANGEUNITS}" ]] && [[ " nautical statute metric " =~ " ${GRAPHS1090_RANGEUNITS} " ]]; then
-    sed -i "s|^range=.*|range=${GRAPHS1090_RANGEUNITS}|g" /etc/default/graphs1090
-elif [[ -n "${GRAPHS1090_RANGEUNITS}" ]] && [[ ! " nautical statute metric " =~ " ${GRAPHS1090_RANGEUNITS} " ]]; then
-    echo "[$(date)][08-graphs1090] WARNING: GRAPHS1090_RANGEUNITS set to \"${GRAPHS1090_RANGEUNITS}\", which an invalid value!"
+if [[ " nautical statute metric " =~ " ${GRAPHS1090_RANGE_UNITS} " ]]; then
+    sed -i "s|^range=.*|range=${GRAPHS1090_RANGE_UNITS}|g" /etc/default/graphs1090
 else
-    sed -i "s|^range=.*|range=nautical|g" /etc/default/graphs1090
+    echo "[$(date)][08-graphs1090] WARNING: GRAPHS1090_RANGE_UNITS set to \"${GRAPHS1090_RANGE_UNITS}\", which an invalid value!"
+fi
+
+if [[ "${GRAPHS1090_TEMP_UNITS}" == "fahrenheit" ]]; then
+    # mind the farenheit misspelling in graphs1090 config, this is not a typo
+    sed -i "s|^farenheit=.*|farenheit=1|g" /etc/default/graphs1090
 fi
 
 # Set graph size, possible values: `small`, `default`, `large`, `huge`, `custom`

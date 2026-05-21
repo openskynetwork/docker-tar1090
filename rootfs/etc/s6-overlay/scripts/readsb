@@ -29,10 +29,12 @@ elif [ -n "${READSB_LON}" ]; then
 fi
 
 if [ -n "${MLATHOST}" ]; then
+    #shellcheck disable=SC2153
     READSB_CMD+=("--net-connector=${MLATHOST},${MLATPORT},beast_in")
 fi
 
 if [ -n "${BEASTHOST}" ]; then
+    #shellcheck disable=SC2153
     READSB_CMD+=("--net-connector=${BEASTHOST},${BEASTPORT},beast_in")
 fi
 
@@ -41,8 +43,10 @@ if [ -n "${UUID}" ]; then
 fi
 
 READSB_CMD+=("--write-json=/run/readsb")
-READSB_CMD+=("--write-state=/var/globe_history")
-READSB_CMD+=("--json-trace-interval=15")
+# no need to write state when tar1090_disable is used for a minimal setup
+if ! chk_enabled "${TAR1090_DISABLE}"; then
+    READSB_CMD+=("--write-state=/var/globe_history")
+fi
 READSB_CMD+=("--json-reliable=1")
 
 READSB_CMD+=("--net-ri-port=30001")
@@ -56,9 +60,11 @@ READSB_CMD+=("--net-json-port=30047")
 # READSB_CMD+=(--forward-mlat)
 READSB_CMD+=(--net-sbs-in-port=32006)
 
-if chk_enabled "${READSB_ENABLE_HEATMAP:-true}"; then
-    READSB_CMD+=("--heatmap-dir=/var/globe_history")
-    READSB_CMD+=("--heatmap=${READSB_HEATMAP_INTERVAL:-15}")
+if ! chk_disabled "${READSB_ENABLE_HEATMAP}"; then
+    if chk_enabled "${READSB_ENABLE_HEATMAP}" || ! chk_enabled "${TAR1090_DISABLE}"; then
+        READSB_CMD+=("--heatmap-dir=/var/globe_history")
+        READSB_CMD+=("--heatmap=${READSB_HEATMAP_INTERVAL:-15}")
+    fi
 fi
 
 if chk_enabled "${READSB_ENABLE_TRACES}"; then
@@ -157,9 +163,7 @@ if [[ -n "$READSB_NET_BEAST_REDUCE_FILTER_DIST" ]]; then
     READSB_CMD+=("--net-beast-reduce-filter-dist=$READSB_NET_BEAST_REDUCE_FILTER_DIST")
 fi
 
-if [[ -n "$READSB_JSON_TRACE_INTERVAL" ]]; then
-    READSB_CMD+=("--json-trace-interval=$READSB_JSON_TRACE_INTERVAL")
-fi
+READSB_CMD+=("--json-trace-interval=${READSB_JSON_TRACE_INTERVAL:-15}")
 
 if [[ -n "$READSB_NET_BEAST_REDUCE_FILTER_ALT" ]]; then
     READSB_CMD+=("--net-beast-reduce-filter-alt=$READSB_NET_BEAST_REDUCE_FILTER_ALT")
@@ -239,14 +243,8 @@ if [[ -n "$READSB_NET_VRS_PORT" ]]; then
     READSB_CMD+=("--net-vrs-port=$READSB_NET_VRS_PORT")
 fi
 
-# make sure the db file exists, and if it does, use it
-if [[ "$TAR1090_ENABLE_AC_DB" == "true" ]]; then
-    if [[ -e $TAR1090_UPDATE_DIR/aircraft.csv.gz ]]; then
-        READSB_CMD+=("--db-file=$TAR1090_UPDATE_DIR/aircraft.csv.gz")
-    elif [[ -e $TAR1090_INSTALL_DIR/aircraft.csv.gz ]]; then
-        # fallback to container supplied not updated csv.gz
-        READSB_CMD+=("--db-file=$TAR1090_INSTALL_DIR/aircraft.csv.gz")
-    fi
+if chk_enabled "$TAR1090_ENABLE_AC_DB"; then
+    READSB_CMD+=("--db-file=$TAR1090_INSTALL_DIR/aircraft.csv.gz")
 fi
 
 # Handle "--device-type"

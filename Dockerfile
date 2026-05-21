@@ -9,6 +9,7 @@ ENV BEASTPORT=30005 \
     GITPATH_TIMELAPSE1090=/opt/timelapse1090 \
     HTTP_ACCESS_LOG="false" \
     HTTP_ERROR_LOG="true" \
+    TAR1090_NGINX_PORT=80 \
     TAR1090_INSTALL_DIR=/usr/local/share/tar1090 \
     TAR1090_UPDATE_DIR=/var/globe_history/tar1090-update \
     MLATPORT=30105 \
@@ -37,6 +38,7 @@ COPY ./ /app/
 
 RUN \
     set -x && \
+    source /etc/os-release && \
     TEMP_PACKAGES=() && \
     KEPT_PACKAGES=() && \
     TEMP_PACKAGES+=(git) && \
@@ -46,7 +48,11 @@ RUN \
     KEPT_PACKAGES+=(collectd-core) && \
     KEPT_PACKAGES+=(rrdtool) && \
     KEPT_PACKAGES+=(bash-builtins) && \
-    KEPT_PACKAGES+=(libpython3.11) && \
+    if [[ "$VERSION_CODENAME" == "trixie" ]]; then \
+        KEPT_PACKAGES+=(libpython3.13); \
+    else \
+        KEPT_PACKAGES+=(libpython3.11); \
+    fi && \
     KEPT_PACKAGES+=(libncurses6) && \
     # healthchecks
     KEPT_PACKAGES+=(jq) && \
@@ -84,16 +90,11 @@ RUN \
     https://github.com/wiedehopf/graphs1090.git \
     /usr/share/graphs1090/git \
     && \
-    # ref: https://github.com/wiedehopf/graphs1090/blob/151e63a810d6b087518992d4f366d9776c5c826b/install.sh#L145
+    # ref: https://github.com/wiedehopf/graphs1090/blob/151e63a810d6b087518992d4f366d9776c5c826b/install.sh
     cp -v \
     /usr/share/graphs1090/git/dump1090.db \
-    /usr/share/graphs1090/git/dump1090.py \
-    /usr/share/graphs1090/git/system_stats.py \
+    /usr/share/graphs1090/git/*.py \
     /usr/share/graphs1090/git/LICENSE \
-    /usr/share/graphs1090/ \
-    && \
-    # ref: https://github.com/wiedehopf/graphs1090/blob/151e63a810d6b087518992d4f366d9776c5c826b/install.sh#L146
-    cp -v \
     /usr/share/graphs1090/git/*.sh \
     /usr/share/graphs1090/ \
     && \
@@ -141,6 +142,7 @@ RUN \
     apt-get autoremove -q -o APT::Autoremove::RecommendsImportant=0 -o APT::Autoremove::SuggestsImportant=0 -y ${TEMP_PACKAGES[@]} && \
     apt-get clean -q -y && \
     rm -rf /src/* /tmp/* /var/lib/apt/lists/* /var/cache/* && \
+    bash /scripts/clean-build.sh && \
     # document versions
     cat /VERSIONS && \
     rm -rf /app

@@ -1,22 +1,26 @@
-name: Deploy
+name: Deploy Trixie Test
 
 on:
+  # Build and deploy the image on pushes to main branch
   workflow_dispatch:
     inputs:
       reason:
-        required: false
+        required: true
         description: "Reason for running this workflow"
       use_test_image:
         required: false
         type: boolean
         description: "Use base image testpr"
         default: false
+      build_latest_as_test:
+        required: false
+        type: boolean
+        description: "Build latest as test"
+        default: false
 
 env:
-  GHCR_IMAGE: sdr-enthusiasts/docker-tar1090
-  GHCR_REGISTRY: ghcr.io
-  GH_LABEL: main
-  GHCR_TAG: telegraf
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   workflow-dispatch:
@@ -32,12 +36,17 @@ jobs:
         env:
           INPUTS_REASON: ${{ github.event.inputs.reason }}
           INPUTS_USE_TEST_IMAGE: ${{ github.event.inputs.use_test_image }}
+          INPUTS_BUILD_LATEST_AS_TEST: ${{ github.event.inputs.build_latest_as_test }}
         run: |
           echo "Workflow dispatch reason: $INPUTS_REASON"
           echo "Use test image: $INPUTS_USE_TEST_IMAGE"
+          echo "Build latest as test: $INPUTS_BUILD_LATEST_AS_TEST"
 
   deploy:
     name: Deploy without telegraf
+    if: |
+      github.event.inputs.build_latest_as_test == 'false' ||
+      github.event.inputs.build_latest_as_test == ''
     uses: sdr-enthusiasts/common-github-workflows/.github/workflows/sdre.yml@main
     with:
       push_enabled: true
@@ -45,13 +54,18 @@ jobs:
       ghcr_repo_owner: ${{ github.repository_owner }}
       ghcr_repo: ${{ github.repository }}
       # set build_latest to true if github.event.inputs.use_test_image is false
-      build_latest: ${{ github.event.inputs.use_test_image == 'false' || github.event.inputs.use_test_image == '' }}
-      build_baseimage_test: ${{ github.event.inputs.use_test_image == 'true' }}
-      build_baseimage_url: wreadsb/wreadsb-test-pr
+      build_latest: true
+      docker_latest_tag: trixie-latest
+      build_baseimage_test: true
+      build_baseimage_url: :wreadsb/:trixie-wreadsb
     secrets:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+
   deploy_with_telegraf:
     name: Deploy with telegraf and healthcheck
+    if: |
+      github.event.inputs.build_latest_as_test == 'false' ||
+      github.event.inputs.build_latest_as_test == ''
     uses: sdr-enthusiasts/common-github-workflows/.github/workflows/sdre.yml@main
     with:
       push_enabled: true
@@ -61,8 +75,8 @@ jobs:
       # set build_latest to true if github.event.inputs.use_test_image is false
       build_latest: ${{ github.event.inputs.use_test_image == 'false' || github.event.inputs.use_test_image == '' }}
       build_baseimage_test: ${{ github.event.inputs.use_test_image == 'true' }}
-      build_baseimage_url: wreadsb/wreadsb-test-pr
-      docker_latest_tag: telegraf
+      build_baseimage_url: :wreadsb/:trixie-wreadsb
+      docker_latest_tag: trixie-telegraf
       dockerfile_changes: |
         ##telegraf##/
     secrets:
@@ -71,12 +85,12 @@ jobs:
   trigger_build_sdr-enthusiasts_ultrafeeder:
     name: Trigger deploy of sdr-enthusiasts/docker-adsb-ultrafeeder
     needs: ["deploy", "deploy_with_telegraf"]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       WORKFLOW_AUTH_TOKEN: ${{ secrets.GH_PAT_KX1T }}
       WORKFLOW_REPO: sdr-enthusiasts/docker-adsb-ultrafeeder
-      WORKFLOW_FILE: deploy.yml
-      WORKFLOW_REASON: "triggered via deploy.yml in sdr-enthusiasts/docker-tar1090"
+      WORKFLOW_FILE: deploy_trixie.yml
+      WORKFLOW_REASON: "triggered via deploy_trixie.yml in sdr-enthusiasts/docker-tar1090"
       WORKFLOW_TEST_IMAGE: ${{ github.event.inputs.use_test_image }}
     steps:
       - name: Trigger ${{ env.WORKFLOW_FILE }} in ${{ env.WORKFLOW_REPO }}
