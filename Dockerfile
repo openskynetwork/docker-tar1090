@@ -28,6 +28,8 @@ ENV BEASTPORT=30005 \
     UPDATE_TAR1090="true" \
     PTRACKS=8
 
+ARG TAR1090_BRANCH=main
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # add telegraf binary
@@ -70,7 +72,7 @@ RUN \
     # nginx: remove default config
     rm /etc/nginx/sites-enabled/default && \
     # tar1090: install using project copy of original script
-    bash /app/rootfs/tar1090-install.sh /run/readsb webroot "${TAR1090_INSTALL_DIR}" && \
+    TAR1090_BRANCH="${TAR1090_BRANCH}" bash /app/rootfs/tar1090-install.sh /run/readsb webroot "${TAR1090_INSTALL_DIR}" && \
     # tar1090-db: document version
     echo "tar1090-db $(cat ${TAR1090_UPDATE_DIR}/git-db/version)" >> VERSIONS && \
     # tar1090: document version
