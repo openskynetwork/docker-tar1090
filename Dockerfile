@@ -28,7 +28,7 @@ ENV BEASTPORT=30005 \
     UPDATE_TAR1090="true" \
     PTRACKS=8
 
-ARG TAR1090_BRANCH=main
+ARG TAR1090_BRANCH=master
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
